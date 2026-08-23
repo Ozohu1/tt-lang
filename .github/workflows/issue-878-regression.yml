@@ -1,0 +1,51 @@
+name: Issue 878 Regression
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  regression-878:
+    name: "Issue 878 exact regression"
+    runs-on: ubuntu-24.04
+
+    container:
+      image: ghcr.io/tenstorrent/tt-lang/tt-lang-ird-ubuntu-24-04:v1.1.9-1c5d0959
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v6
+        with:
+          ref: fix-878-multiline-decorators
+          fetch-depth: 1
+
+      - name: Fix git safe directory
+        run: git config --global --add safe.directory '*'
+
+      - name: Configure tt-lang
+        run: |
+          cmake -G Ninja -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DTTLANG_USE_TOOLCHAIN=ON \
+            -DTTLANG_ENABLE_PERF_TRACE=ON
+
+      - name: Build Python extension
+        run: |
+          source build/env/activate
+          cmake --build build --target TTLangPythonModules
+
+      - name: Run issue 878 regression
+        run: |
+          source build/env/activate
+          python -m pytest \
+            -c build/test/pytest.ini \
+            --rootdir=test \
+            test/python/atom/test_atom_split.py::test_build_atom_spec_accepts_multiline_decorator \
+            -q
